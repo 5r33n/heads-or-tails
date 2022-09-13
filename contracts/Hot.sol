@@ -5,10 +5,10 @@ import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
 
-error Raffle__NotEnoughETHEntered();
-error Raffle__TransferFailed();
-error Raffle__NotOpen();
-error Raffle__UpkeepNotNeeded(uint256 currentBalance, uint256 numPlayers, uint256 hotState);
+error Hot__NotEnoughETHEntered();
+error Hot__TransferFailed();
+error Hot__NotOpen();
+error Hot__UpkeepNotNeeded(uint256 currentBalance, uint256 numPlayers, uint256 hotState);
 
 /** @title Heads or Tails
  * @author Milad Green
@@ -38,8 +38,8 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     uint256 private immutable i_interval;
 
     /* Events */
-    event RaffleEnter(address indexed player);
-    event RequestedRaffleWinner(uint256 indexed requestId);
+    event HotEnter(address indexed player);
+    event RequestedHotWinner(uint256 indexed requestId);
     // event WinnerPicked(address indexed winner);
     event HotResult(uint256 indexed result);
 
@@ -62,19 +62,19 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         i_interval = interval;
     }
 
-    function enterRaffle() public payable {
+    function enterHot() public payable {
         if (msg.value < i_entranceFee) {
-            revert Raffle__NotEnoughETHEntered();
+            revert Hot__NotEnoughETHEntered();
         }
 
         if (s_hotState != HotState.OPEN) {
-            revert Raffle__NotOpen();
+            revert Hot__NotOpen();
         }
 
         s_players.push(payable(msg.sender));
 
         // Emit an event when we update a dynamic array or mapping
-        emit RaffleEnter(msg.sender);
+        emit HotEnter(msg.sender);
     }
 
     /**
@@ -108,7 +108,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     ) external override {
         (bool upkeepNeeded, ) = checkUpkeep("");
         if (!upkeepNeeded) {
-            revert Raffle__UpkeepNotNeeded(
+            revert Hot__UpkeepNotNeeded(
                 address(this).balance,
                 s_players.length,
                 uint256(s_hotState)
@@ -122,7 +122,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
             i_callbackGasLimit,
             NUM_WORDS
         );
-        emit RequestedRaffleWinner(requestId);
+        emit RequestedHotWinner(requestId);
     }
 
     // 2. Fulfill
@@ -133,13 +133,13 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         // uint256 indexOfWinner = randomWords[0] % s_players.length;
         uint256 flipResult = randomWords[0] % 2;
         // address payable recentWinner = s_players[indexOfWinner];
-        // s_recentWinner = recentWinner;
+        // s_recentFlip = recentWinner;
         s_hotState = HotState.OPEN;
-        // s_players = new address payable[](0);
+        s_players = new address payable[](0);
         s_lastTimeStamp = block.timestamp;
         // (bool success, ) = recentWinner.call{value: address(this).balance}("");
         // if (!success) {
-        //     revert Raffle__TransferFailed();
+        //     revert Hot__TransferFailed();
         // }
         // emit WinnerPicked(recentWinner);
         emit HotResult(flipResult);
