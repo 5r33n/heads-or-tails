@@ -32,7 +32,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     uint32 private constant NUM_WORDS = 1;
 
     /* Lottery Variables (State Variables) */
-    address private s_recentWinner;
+    address private s_recentFlip;
     HotState private s_hotState;
     uint256 private s_lastTimeStamp;
     uint256 private immutable i_interval;
@@ -40,7 +40,8 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     /* Events */
     event RaffleEnter(address indexed player);
     event RequestedRaffleWinner(uint256 indexed requestId);
-    event WinnerPicked(address indexed winner);
+    // event WinnerPicked(address indexed winner);
+    event HotResult(uint256 indexed result);
 
     /* Functions */
     constructor(
@@ -129,17 +130,19 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         uint256, /*requestId*/
         uint256[] memory randomWords
     ) internal override {
-        uint256 indexOfWinner = randomWords[0] % s_players.length;
-        address payable recentWinner = s_players[indexOfWinner];
-        s_recentWinner = recentWinner;
+        // uint256 indexOfWinner = randomWords[0] % s_players.length;
+        uint256 flipResult = randomWords[0] % 2;
+        // address payable recentWinner = s_players[indexOfWinner];
+        // s_recentWinner = recentWinner;
         s_hotState = HotState.OPEN;
-        s_players = new address payable[](0);
+        // s_players = new address payable[](0);
         s_lastTimeStamp = block.timestamp;
-        (bool success, ) = recentWinner.call{value: address(this).balance}("");
-        if (!success) {
-            revert Raffle__TransferFailed();
-        }
-        emit WinnerPicked(recentWinner);
+        // (bool success, ) = recentWinner.call{value: address(this).balance}("");
+        // if (!success) {
+        //     revert Raffle__TransferFailed();
+        // }
+        // emit WinnerPicked(recentWinner);
+        emit HotResult(flipResult);
     }
 
     /* View / Pure functions */
@@ -152,8 +155,8 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         return s_players[index];
     }
 
-    function getRecentWinner() public view returns (address) {
-        return s_recentWinner;
+    function getRecentFlip() public view returns (address) {
+        return s_recentFlip;
     }
 
     function getHotState() public view returns (HotState) {

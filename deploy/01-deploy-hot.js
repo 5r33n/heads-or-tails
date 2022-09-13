@@ -10,8 +10,11 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     const chainId = network.config.chainId
     let vrfCoordinatorV2Address, subscriptionId
 
+    log("[FILE] 01-deploy-hot.js")
+
     // if on a local network:
     if (developmentChains.includes(network.name)) {
+        log("[INFO] Local Network detected!")
         const vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock")
         vrfCoordinatorV2Address = vrfCoordinatorV2Mock.address
 
@@ -21,6 +24,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
         // funding the subscription:
         await vrfCoordinatorV2Mock.fundSubscription(subscriptionId, VRF_SUB_FUND_AMOUNT)
     } else {
+        log("[INFO] Remote Network detected!")
         vrfCoordinatorV2Address = networkConfig[chainId]["vrfCoordinatorV2"]
         subscriptionId = networkConfig[chainId]["subscriptionId"]
     }
@@ -46,11 +50,11 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     })
 
     if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
-        log("Verifying...")
+        log("[OK] Verifying on remote network...")
         await verify(raffle.address, args)
     }
 
-    log("---------------------------------------------------")
+    log("------------------------------------------------------")
 }
 
-module.exports.tags = ["all", "raffle"]
+module.exports.tags = ["all", "hot"]

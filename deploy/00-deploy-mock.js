@@ -8,20 +8,24 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     const { deployer } = await getNamedAccounts()
     const args = [BASE_FEE, GAS_PRICE_LINK]
 
-    if (developmentChains.includes(network.name)) {
-        log("Local network detected!")
-        log("Deploying mocks...")
+    log("------------------------------------------------------")
+    log("[FILE] 00-deploy-mock.js")
 
-        // deploy a mock vrfcoordinator
+    if (developmentChains.includes(network.name)) {
+        log("[INFO] Local Network detected!")
+
         await deploy("VRFCoordinatorV2Mock", {
             from: deployer,
             log: true,
             args: args,
         })
 
-        log("Mocks deployed!")
-        log("------------------------------------------------------")
+        log("[OK] Mocks deployed!")
+    } else {
+        log("[INFO] Remote Network detected!")
+        log("[EXIT] Exitting file w/o doing anything really ^^")
     }
+    log("------------------------------------------------------")
 }
 
 module.exports.tags = ["all", "mocks"]
