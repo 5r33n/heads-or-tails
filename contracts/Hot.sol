@@ -20,10 +20,19 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         OPEN,
         CALCULATING
     }
+    enum HeadsOrTails {
+        HEADS,
+        TAILS
+    }
 
     /* State Variable */
     uint256 private immutable i_entranceFee;
     address payable[] private s_players;
+    address payable[] private s_headers;
+    address payable[] private s_tailers;
+    uint256 private s_winAmount;
+    uint256 private s_headersBalance = 0;
+    uint256 private s_tailersBalance = 0;
     VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
     bytes32 private immutable i_gasLane;
     uint64 private immutable i_subscriptionId;
@@ -32,7 +41,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     uint32 private constant NUM_WORDS = 1;
 
     /* Lottery Variables (State Variables) */
-    address private s_recentFlip;
+    HeadsOrTails private s_recentFlip;
     HotState private s_hotState;
     uint256 private s_lastTimeStamp;
     uint256 private immutable i_interval;
@@ -62,7 +71,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         i_interval = interval;
     }
 
-    function enterHot() public payable {
+    function enterHot(HeadsOrTails choice) public payable {
         if (msg.value < i_entranceFee) {
             revert Hot__NotEnoughETHEntered();
         }
@@ -71,7 +80,17 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
             revert Hot__NotOpen();
         }
 
-        s_players.push(payable(msg.sender));
+        bool isHeads = (HeadsOrTails.HEADS == choice);
+
+        if (isHeads) {
+            s_headers.push(payable(msg.sender));
+            s_headersBalance += msg.value;
+        } else {
+            s_tailers.push(payable(msg.sender));
+            s_tailersBalance += msg.value;
+        }
+
+        // s_players.push(payable(msg.sender));
 
         // Emit an event when we update a dynamic array or mapping
         emit HotEnter(msg.sender);
@@ -96,7 +115,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     {
         bool isOpen = (HotState.OPEN == s_hotState);
         bool timePassed = ((block.timestamp - s_lastTimeStamp) > i_interval);
-        bool hasPlayers = (s_players.length > 0);
+        bool hasPlayers = (s_headers.length + s_tailers.length > 0);
         bool hasBalance = (address(this).balance > 0);
         upkeepNeeded = (isOpen && timePassed && hasPlayers && hasBalance);
     }
@@ -110,7 +129,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         if (!upkeepNeeded) {
             revert Hot__UpkeepNotNeeded(
                 address(this).balance,
-                s_players.length,
+                s_headers.length + s_tailers.length,
                 uint256(s_hotState)
             );
         }
@@ -132,11 +151,33 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     ) internal override {
         // uint256 indexOfWinner = randomWords[0] % s_players.length;
         uint256 flipResult = randomWords[0] % 2;
+        (flipResult == 0) ? s_recentFlip = HeadsOrTails.HEADS : s_recentFlip = HeadsOrTails.TAILS;
         // address payable recentWinner = s_players[indexOfWinner];
-        // s_recentFlip = recentWinner;
+        // s_recentFlip = flipResult;
         s_hotState = HotState.OPEN;
         s_players = new address payable[](0);
         s_lastTimeStamp = block.timestamp;
+
+        uint256 winnerIndex = 0;
+        uint256 winnerShare;
+
+        if (s_recentFlip == HeadsOrTails.HEADS) {
+            for (winnerIndex = 0; winnerIndex < s_headers.length; winnerIndex++) {
+                winnerShare = getWinnerShare(s_headers[winnerIndex].balance, s_recentFlip);
+                (bool success, ) = s_headers[winnerIndex].call{value: winnerShare}("");
+                if (!success) {
+                    revert Hot__TransferFailed();
+                }
+            }
+        } else {
+            for (winnerIndex = 0; winnerIndex < s_tailers.length; winnerIndex++) {
+                winnerShare = getWinnerShare(s_tailers[winnerIndex].balance, s_recentFlip);
+                (bool success, ) = s_tailers[winnerIndex].call{value: winnerShare}("");
+                if (!success) {
+                    revert Hot__TransferFailed();
+                }
+            }
+        }
         // (bool success, ) = recentWinner.call{value: address(this).balance}("");
         // if (!success) {
         //     revert Hot__TransferFailed();
@@ -147,6 +188,26 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
 
     /* View / Pure functions */
 
+    function getWinnerShare(uint256 betAmount, HeadsOrTails flipResult)
+        public
+        view
+        returns (uint256)
+    {
+        uint256 winnerShare;
+        uint256 winnersTotalBalance;
+        uint256 losersTotalBalance;
+
+        if (flipResult == HeadsOrTails.HEADS) {
+            winnersTotalBalance = s_headersBalance;
+            losersTotalBalance = s_tailersBalance;
+        } else {
+            winnersTotalBalance = s_tailersBalance;
+            losersTotalBalance = s_headersBalance;
+        }
+        winnerShare = (s_tailersBalance / s_headersBalance + 1) * betAmount;
+        return winnerShare;
+    }
+
     function getEntranceFee() public view returns (uint256) {
         return i_entranceFee;
     }
@@ -155,7 +216,15 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
         return s_players[index];
     }
 
-    function getRecentFlip() public view returns (address) {
+    function getHeader(uint256 index) public view returns (address) {
+        return s_headers[index];
+    }
+
+    function getTailer(uint256 index) public view returns (address) {
+        return s_tailers[index];
+    }
+
+    function getRecentFlip() public view returns (HeadsOrTails) {
         return s_recentFlip;
     }
 
