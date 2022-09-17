@@ -5,7 +5,14 @@ const { assert, expect } = require("chai")
 !developmentChains.includes(network.name)
     ? describe.skip
     : describe("HoT Unit Tests", function () {
-          let hot, vrfCoordinatorV2Mock, hotEntranceFee, deployer, interval, isHeads, isTails
+          let hot,
+              vrfCoordinatorV2Mock,
+              hotEntranceFee,
+              deployer,
+              interval,
+              isHeads,
+              isTails,
+              winnerShare
           const chainId = network.config.chainId
 
           beforeEach(async function () {
@@ -59,6 +66,7 @@ const { assert, expect } = require("chai")
                   )
               })
           })
+
           describe("checkUpkeep", function () {
               it("returns false if ppl haven't sent any ETH", async function () {
                   await network.provider.send("evm_increaseTime", [interval.toNumber() + 1])
@@ -143,7 +151,7 @@ const { assert, expect } = require("chai")
                       i++
                   ) {
                       const accountConnectedHot = hot.connect(accounts[i])
-                      await accountConnectedHot.enterHot(isHeads, { value: hotEntranceFee })
+                      await accountConnectedHot.enterHot(isTails, { value: hotEntranceFee })
                   }
                   const startingTimeStamp = await hot.getLatestTimeStamp()
 
@@ -153,29 +161,32 @@ const { assert, expect } = require("chai")
                   await new Promise(async (resolve, reject) => {
                       // listen for event 'WinnerPicked'
                       hot.once("HotResult", async () => {
-                          //   console.log("Found the event!")
+                          console.log("Found the event!")
                           try {
                               const recentFlip = await hot.getRecentFlip()
                               console.log("recent flip:", recentFlip.toString())
-                              console.log("[0] deployer:", accounts[0].address)
-                              console.log("[1]", accounts[1].address)
-                              console.log("[2]", accounts[2].address)
-                              console.log("[3]", accounts[3].address)
+
+                              for (let j = 0; j < 4; j++) {
+                                  const endingBalance = await accounts[j].getBalance()
+                                  console.log(endingBalance.toString())
+                              }
                               const hotState = await hot.getHotState()
                               const endingTimeStamp = await hot.getLatestTimeStamp()
                               const numPlayers = await hot.getNumberOfPlayers()
                               const winnerEndingBalance = await accounts[1].getBalance()
+                              //   console.log(winnerEndingBalance.toString())
                               assert(numPlayers.toString(), "0")
                               assert(hotState.toString(), "0")
                               assert(endingTimeStamp > startingTimeStamp)
-                              //   assert.equal(
-                              //       winnerEndingBalance.toString(),
-                              //       winnerStartingBalance
-                              //           .add(
-                              //               hotEntranceFee.mul(additionalEntrants).add(hotEntranceFee)
-                              //           )
-                              //           .toString()
-                              //   )
+
+                              //     assert.equal(
+                              //         winnerEndingBalance.toString(),
+                              //         winnerStartingBalance
+                              //             .add(
+                              //                 hotEntranceFee.mul(additionalEntrants).add(hotEntranceFee)
+                              //             )
+                              //             .toString()
+                              //     )
                           } catch (e) {
                               reject(e)
                           }
@@ -186,13 +197,50 @@ const { assert, expect } = require("chai")
                       // chainlink keepers mock
                       const tx = await hot.performUpkeep([])
                       const txReceipt = await tx.wait(1)
-                      const winnerStartingBalance = await accounts[1].getBalance()
+                      //   const winnerStartingBalance = await accounts[1].getBalance()
+                      console.log(accounts.length)
+                      for (let j = 0; j < 4; j++) {
+                          const startingBalance = await accounts[j].getBalance()
+                          console.log(startingBalance.toString())
+                      }
                       // chainlink vrf mock
                       await vrfCoordinatorV2Mock.fulfillRandomWords(
                           txReceipt.events[1].args.requestId,
                           hot.address
                       )
+                      //   console.log(hot.address)
+                      console.log((await hot.getRecentFlip()).toString())
                   })
+              })
+          })
+          describe("getWinnerShare", function () {
+              beforeEach(async function () {
+                  await hot.enterHot(isHeads, { value: hotEntranceFee })
+                  console.log("0: isHeads :", hotEntranceFee.toString())
+                  await network.provider.send("evm_increaseTime", [interval.toNumber() + 1])
+                  await network.provider.send("evm_mine", [])
+              })
+              it("returns the winner share", async function () {
+                  const additionalEntrants = 3
+                  const startingAccountIndex = 1 // deployer index = 0
+                  const accounts = await ethers.getSigners()
+                  for (
+                      let i = startingAccountIndex;
+                      i < startingAccountIndex + additionalEntrants;
+                      i++
+                  ) {
+                      const accountConnectedHot = hot.connect(accounts[i])
+                      await accountConnectedHot.enterHot(isTails, { value: hotEntranceFee })
+                  }
+                  for (let i = 1; i < 4; i++) {
+                      // console.log(await (await accounts[i].getBalance()).toString())
+                      console.log(i, ": isTails :", hotEntranceFee.toString())
+                  }
+                  let winnerShare = await hot.getWinnerShare(hotEntranceFee, 0)
+                  console.log("winner is Tails")
+                  console.log(winnerShare.toString())
+                  let numberOfPls = (await hot.getNumberOfPlayers()).toString()
+                  console.log(numberOfPls)
               })
           })
       })
