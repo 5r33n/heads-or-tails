@@ -209,7 +209,7 @@ const { assert, expect } = require("chai")
                           hot.address
                       )
                       //   console.log(hot.address)
-                      console.log((await hot.getRecentFlip()).toString())
+                      //   console.log((await hot.getRecentFlip()).toString())
                   })
               })
           })

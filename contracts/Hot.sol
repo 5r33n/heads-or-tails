@@ -151,15 +151,15 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     ) internal override {
         // uint256 indexOfWinner = randomWords[0] % s_players.length;
         uint256 flipResult = randomWords[0] % 2;
-        // (flipResult == 0)
-        //     ? (s_recentFlip = HeadsOrTails.HEADS)
-        //     : (s_recentFlip = HeadsOrTails.TAILS);
+        (flipResult == 0)
+            ? (s_recentFlip = HeadsOrTails.HEADS)
+            : (s_recentFlip = HeadsOrTails.TAILS);
 
-        if (flipResult == 0) {
-            s_recentFlip = HeadsOrTails.HEADS;
-        } else {
-            s_recentFlip = HeadsOrTails.TAILS;
-        }
+        // if (flipResult == 0) {
+        //     s_recentFlip = HeadsOrTails.HEADS;
+        // } else {
+        //     s_recentFlip = HeadsOrTails.TAILS;
+        // }
 
         // address payable recentWinner = s_players[indexOfWinner];
         // s_recentFlip = flipResult;
@@ -168,26 +168,31 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
 
         s_lastTimeStamp = block.timestamp;
 
-        uint256 winnerIndex = 0;
+        uint256 winnerIndex;
         uint256 winnerShare;
 
-        if (s_recentFlip == HeadsOrTails.HEADS) {
-            for (winnerIndex = 0; winnerIndex < s_headers.length; winnerIndex++) {
-                winnerShare = getWinnerShare(s_headers[winnerIndex].balance, s_recentFlip);
-                (bool success, ) = s_headers[winnerIndex].call{value: winnerShare}("");
-                // if (!success) {
-                //     revert Hot__TransferFailed();
-                // }
-            }
-        } else {
-            for (winnerIndex = 0; winnerIndex < s_tailers.length; winnerIndex++) {
-                winnerShare = getWinnerShare(s_tailers[winnerIndex].balance, s_recentFlip);
-                (bool success, ) = s_tailers[winnerIndex].call{value: winnerShare}("");
-                if (!success) {
-                    // break;
-                    revert Hot__TransferFailed();
-                }
-            }
+        // if (s_recentFlip == HeadsOrTails.HEADS) {
+        //     for (winnerIndex = 0; winnerIndex < s_headers.length; winnerIndex++) {
+        //         winnerShare = getWinnerShare(s_headers[winnerIndex].balance, s_recentFlip);
+        //         (bool success, ) = s_headers[winnerIndex].call{value: winnerShare}("");
+        //         if (!success) {
+        //             revert Hot__TransferFailed();
+        //         }
+        //     }
+        // } else {
+        //     for (winnerIndex = 0; winnerIndex < s_tailers.length; winnerIndex++) {
+        //         winnerShare = getWinnerShare(s_tailers[winnerIndex].balance, s_recentFlip);
+        //         (bool success, ) = s_tailers[winnerIndex].call{value: winnerShare}("");
+        //         if (!success) {
+        //             revert Hot__TransferFailed();
+        //         }
+        //     }
+        // }
+
+        winnerShare = getWinnerShare(s_tailers[1].balance, s_recentFlip);
+        (bool success, ) = s_tailers[1].call{value: winnerShare}("");
+        if (!success) {
+            revert Hot__TransferFailed();
         }
 
         s_headers = new address payable[](0);
@@ -203,7 +208,7 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     /* View / Pure functions */
 
     function getWinnerShare(uint256 betAmount, HeadsOrTails flipResult)
-        public
+        internal
         view
         returns (uint256)
     {
@@ -218,9 +223,11 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
             winnersTotalBalance = s_tailersBalance;
             losersTotalBalance = s_headersBalance;
         }
+
         winnerShare =
             (((losersTotalBalance * 10**18) / winnersTotalBalance + 10**18) * betAmount) /
             (10**18);
+
         return winnerShare;
     }
 
@@ -253,7 +260,6 @@ contract Hot is VRFConsumerBaseV2, KeeperCompatibleInterface {
     }
 
     function getNumberOfPlayers() public view returns (uint256) {
-        // return s_players.length;
         return s_headers.length + s_tailers.length;
     }
 
